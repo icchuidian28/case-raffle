@@ -1,3 +1,8 @@
+This requires breaking the process into two distinct steps: a **"Setup"** phase (where you declare how many cases are to be raffled today) and an **"Active Session"** phase (where the committee presses a button to draw the cases one by one).
+
+Here is the updated code. It introduces a session tracker. When you enter a number and click "Start Raffle Session," the interface changes, giving you a green "Draw Next Case" button to step through the raffle one token at a time.
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,6 +14,7 @@
             --primary: #2c3e50;
             --secondary: #34495e;
             --accent: #3498db;
+            --success: #27ae60;
             --bg: #f8f9fa;
         }
         body {
@@ -32,6 +38,13 @@
             gap: 10px;
             align-items: center;
         }
+        
+        /* New Active Session Styling */
+        .active-session {
+            background-color: #e8f6f3;
+            border: 2px solid var(--success);
+        }
+
         input[type="number"] {
             padding: 10px;
             font-size: 16px;
@@ -50,6 +63,8 @@
             transition: background 0.2s;
         }
         button:hover { background-color: #2980b9; }
+        button.success { background-color: var(--success); font-weight: bold;}
+        button.success:hover { background-color: #2ecc71; }
         button.danger { background-color: #e74c3c; }
         button.danger:hover { background-color: #c0392b; }
         
@@ -86,17 +101,23 @@
 
     <h1>Case Raffle System</h1>
 
-    <div class="card controls">
-        <label for="casesToday"><strong>Cases to Draw:</strong></label>
+    <div class="card controls" id="setupControls">
+        <label for="casesToday"><strong>Cases for this Session:</strong></label>
         <input type="number" id="casesToday" value="1" min="1" max="50">
-        <button onclick="runRaffle()">Draw Cases</button>
+        <button onclick="startSession()">Start Raffle Session</button>
         <div style="flex-grow: 1;"></div>
         <button class="danger" onclick="resetSystem()">Hard Reset System</button>
     </div>
 
+    <div class="card controls active-session" id="activeControls" style="display: none;">
+        <h3 style="margin: 0; color: var(--success);">Active Session</h3>
+        <button class="success" onclick="drawSingleCase()">Draw Next Case</button>
+        <span id="sessionProgress" style="font-size: 1.1em; font-weight: bold; margin-left: 10px;"></span>
+    </div>
+
     <div class="card">
         <h2>System Status</h2>
-        <p>Pool: <strong id="deckCount" style="font-size: 1.2em; color: #e67e22;"></strong></p>
+        <p>Tokens remaining in active pool: <strong id="poolCount" style="font-size: 1.2em; color: #e67e22;"></strong></p>
         
         <h3>Total Workload Distribution</h3>
         <div class="workload-grid" id="workloadGrid">
@@ -104,13 +125,12 @@
     </div>
 
     <div class="card">
-        <h2>Audit Log</h2>
+        <h2>Official Audit Log</h2>
         <div id="auditLog"></div>
     </div>
 
     <script>
         // --- Core Application State ---
-        // Load from localStorage or initialize defaults
         let state = JSON.parse(localStorage.getItem('raffleState'));
 
         if (!state) {
@@ -120,16 +140,16 @@
         // --- Core Logic Functions ---
         function initializeFreshState() {
             state = {
-                deck: shuffle([1, 2, 3, 4, 5, 6, 7]),
+                pool: shuffle([1, 2, 3, 4, 5, 6, 7]),
                 workload: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 },
-                logs: [`[${new Date().toLocaleTimeString()}] System Initialized. New Pool of 7 created and shuffled.`]
+                logs: [`[${new Date().toLocaleTimeString()}] System Initialized. New Pool of 7 tokens created and shuffled.`],
+                session: { active: false, totalCases: 0, drawnCases: 0 } // Tracks the step-by-step session
             };
             saveState();
         }
 
         function shuffle(array) {
             let currentIndex = array.length, randomIndex;
-            // Fisher-Yates Shuffle
             while (currentIndex > 0) {
                 randomIndex = Math.floor(Math.random() * currentIndex);
                 currentIndex--;
@@ -147,11 +167,11 @@
             const time = new Date().toLocaleTimeString();
             const logEntry = `<div class="${isSecurity ? 'log-security' : ''}">[${time}] ${message}</div>`;
             state.logs.push(logEntry);
-            // Keep log from getting infinitely long
             if(state.logs.length > 200) state.logs.shift(); 
         }
 
-        function runRaffle() {
+        // --- Session Logic ---
+        function startSession() {
             const input = document.getElementById('casesToday');
             const numCases = parseInt(input.value);
 
@@ -160,30 +180,46 @@
                 return;
             }
 
-            addLog(`--- STARTING DRAW FOR ${numCases} CASE(S) ---`);
+            // Initialize the step-by-step session
+            state.session.active = true;
+            state.session.totalCases = numCases;
+            state.session.drawnCases = 0;
+            
+            addLog(`--- STARTING NEW RAFFLE SESSION FOR ${numCases} CASE(S) ---`);
+            saveState();
+        }
 
-            for (let i = 0; i < numCases; i++) {
-                // 1. Draw the top card
-                const assignedDivision = state.deck.shift();
-                
-                // 2. Update workload
-                state.workload[assignedDivision]++;
-                
-                // 3. Log it
-                addLog(`Case #${i+1} assigned to Division ${assignedDivision}`);
+        function drawSingleCase() {
+            if (!state.session.active) return;
 
-                // 4. THE THRESHOLD CHECK (If 3 or fewer cards remain)
-                if (state.deck.length <= 3) {
-                    addLog(`SECURITY TRIGGER: Pool reached threshold (${state.deck.length} cards left).`, true);
-                    const freshCards = [1, 2, 3, 4, 5, 6, 7];
-                    state.deck = state.deck.concat(freshCards); // Combine
-                    state.deck = shuffle(state.deck);           // Reshuffle
-                    addLog(`Injected 7 new tokens and completely reshuffled. New Pool size: ${state.deck.length}`, true);
-                }
+            // 1. Increment progress
+            state.session.drawnCases++;
+            
+            // 2. Draw the top token from the pool
+            const assignedDivision = state.pool.shift();
+            
+            // 3. Update workload
+            state.workload[assignedDivision]++;
+            
+            // 4. Log it
+            addLog(`Case #${state.session.drawnCases} of ${state.session.totalCases} assigned to Division ${assignedDivision}`);
+
+            // 5. THE THRESHOLD CHECK (If 3 or fewer tokens remain)
+            if (state.pool.length <= 3) {
+                addLog(`SECURITY TRIGGER: Pool reached threshold (${state.pool.length} tokens left).`, true);
+                const freshTokens = [1, 2, 3, 4, 5, 6, 7];
+                state.pool = state.pool.concat(freshTokens); // Combine
+                state.pool = shuffle(state.pool);            // Reshuffle
+                addLog(`Injected 7 fresh tokens and completely reshuffled. New Pool size: ${state.pool.length}`, true);
             }
 
-            addLog(`--- DRAW COMPLETE ---`);
-            saveState(); // Saves to local storage and updates the DOM
+            // 6. Check if session is finished
+            if (state.session.drawnCases >= state.session.totalCases) {
+                state.session.active = false;
+                addLog(`--- SESSION COMPLETE ---`);
+            }
+
+            saveState();
         }
 
         function resetSystem() {
@@ -194,8 +230,22 @@
 
         // --- DOM Interaction ---
         function updateUI() {
-            // Update Deck Count
-            document.getElementById('deckCount').innerText = state.deck.length;
+            // Toggle Setup vs Active controls
+            const setupDiv = document.getElementById('setupControls');
+            const activeDiv = document.getElementById('activeControls');
+            const progressSpan = document.getElementById('sessionProgress');
+
+            if (state.session.active) {
+                setupDiv.style.display = 'none';
+                activeDiv.style.display = 'flex';
+                progressSpan.innerText = `Progress: ${state.session.drawnCases} / ${state.session.totalCases} Cases Drawn`;
+            } else {
+                setupDiv.style.display = 'flex';
+                activeDiv.style.display = 'none';
+            }
+
+            // Update Active Token Pool Count
+            document.getElementById('poolCount').innerText = state.pool.length;
 
             // Update Workload Grid
             const grid = document.getElementById('workloadGrid');
@@ -211,9 +261,7 @@
 
             // Update Logs
             const logContainer = document.getElementById('auditLog');
-            // Render logs in reverse so newest is at the bottom (natural reading)
             logContainer.innerHTML = state.logs.join('');
-            // Auto-scroll to bottom
             logContainer.scrollTop = logContainer.scrollHeight;
         }
 
@@ -222,3 +270,5 @@
     </script>
 </body>
 </html>
+
+```
