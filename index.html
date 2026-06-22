@@ -1,4 +1,12 @@
+I know exactly what is causing this error.
 
+Your browser's `localStorage` is remembering the saved data from the **previous** version of the code we made. Because that older version didn't have the step-by-step "session" feature, it doesn't know what `state.session.active` is, which causes the page to crash.
+
+To fix this permanently, we just need to add a tiny check right after the app loads. If the app detects an old save file that is missing the "session" data, it will automatically upgrade it.
+
+Here is the complete, patched code. You can copy and paste this directly over your current `index.html` file:
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -131,6 +139,10 @@
 
         if (!state) {
             initializeFreshState();
+        } else if (!state.session) {
+            // FIX: If loading an older save file, automatically upgrade it to include the session logic
+            state.session = { active: false, totalCases: 0, drawnCases: 0 };
+            saveState();
         }
 
         // --- Core Logic Functions ---
@@ -139,7 +151,7 @@
                 pool: shuffle([1, 2, 3, 4, 5, 6, 7]),
                 workload: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 },
                 logs: [`[${new Date().toLocaleTimeString()}] System Initialized. New Pool of 7 tokens created and shuffled.`],
-                session: { active: false, totalCases: 0, drawnCases: 0 } // Tracks the step-by-step session
+                session: { active: false, totalCases: 0, drawnCases: 0 } 
             };
             saveState();
         }
@@ -226,12 +238,11 @@
 
         // --- DOM Interaction ---
         function updateUI() {
-            // Toggle Setup vs Active controls
             const setupDiv = document.getElementById('setupControls');
             const activeDiv = document.getElementById('activeControls');
             const progressSpan = document.getElementById('sessionProgress');
 
-            if (state.session.active) {
+            if (state && state.session && state.session.active) {
                 setupDiv.style.display = 'none';
                 activeDiv.style.display = 'flex';
                 progressSpan.innerText = `Progress: ${state.session.drawnCases} / ${state.session.totalCases} Cases Drawn`;
@@ -266,3 +277,5 @@
     </script>
 </body>
 </html>
+
+```
