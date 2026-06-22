@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Case Raffle System</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #34495e;
+            --accent: #3498db;
+            --bg: #f8f9fa;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--primary);
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3 { margin-top: 0; }
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        input[type="number"] {
+            padding: 10px;
+            font-size: 16px;
+            width: 100px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #2980b9; }
+        button.danger { background-color: #e74c3c; }
+        button.danger:hover { background-color: #c0392b; }
+        
+        /* Workload Grid */
+        .workload-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 10px;
+            text-align: center;
+        }
+        .division-stat {
+            background: var(--bg);
+            padding: 15px 5px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+        }
+        .division-stat strong { display: block; font-size: 24px; color: var(--accent); }
+        
+        /* Audit Log */
+        #auditLog {
+            height: 250px;
+            overflow-y: auto;
+            background: #1e1e1e;
+            color: #4af626;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            line-height: 1.5;
+        }
+        .log-security { color: #f1c40f; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>Case Raffle System</h1>
+
+    <div class="card controls">
+        <label for="casesToday"><strong>Cases to Draw:</strong></label>
+        <input type="number" id="casesToday" value="1" min="1" max="50">
+        <button onclick="runRaffle()">Draw Cases</button>
+        <div style="flex-grow: 1;"></div>
+        <button class="danger" onclick="resetSystem()">Hard Reset System</button>
+    </div>
+
+    <div class="card">
+        <h2>System Status</h2>
+        <p>Cards remaining in current deck: <strong id="deckCount" style="font-size: 1.2em; color: #e67e22;"></strong></p>
+        
+        <h3>Total Workload Distribution</h3>
+        <div class="workload-grid" id="workloadGrid">
+            </div>
+    </div>
+
+    <div class="card">
+        <h2>Audit Log</h2>
+        <div id="auditLog"></div>
+    </div>
+
+    <script>
+        // --- Core Application State ---
+        // Load from localStorage or initialize defaults
+        let state = JSON.parse(localStorage.getItem('raffleState'));
+
+        if (!state) {
+            initializeFreshState();
+        }
+
+        // --- Core Logic Functions ---
+        function initializeFreshState() {
+            state = {
+                deck: shuffle([1, 2, 3, 4, 5, 6, 7]),
+                workload: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 },
+                logs: [`[${new Date().toLocaleTimeString()}] System Initialized. New deck of 7 created and shuffled.`]
+            };
+            saveState();
+        }
+
+        function shuffle(array) {
+            let currentIndex = array.length, randomIndex;
+            // Fisher-Yates Shuffle
+            while (currentIndex > 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        }
+
+        function saveState() {
+            localStorage.setItem('raffleState', JSON.stringify(state));
+            updateUI();
+        }
+
+        function addLog(message, isSecurity = false) {
+            const time = new Date().toLocaleTimeString();
+            const logEntry = `<div class="${isSecurity ? 'log-security' : ''}">[${time}] ${message}</div>`;
+            state.logs.push(logEntry);
+            // Keep log from getting infinitely long
+            if(state.logs.length > 200) state.logs.shift(); 
+        }
+
+        function runRaffle() {
+            const input = document.getElementById('casesToday');
+            const numCases = parseInt(input.value);
+
+            if (isNaN(numCases) || numCases <= 0) {
+                alert("Please enter a valid number of cases.");
+                return;
+            }
+
+            addLog(`--- STARTING DRAW FOR ${numCases} CASE(S) ---`);
+
+            for (let i = 0; i < numCases; i++) {
+                // 1. Draw the top card
+                const assignedDivision = state.deck.shift();
+                
+                // 2. Update workload
+                state.workload[assignedDivision]++;
+                
+                // 3. Log it
+                addLog(`Case #${i+1} assigned to Division ${assignedDivision}`);
+
+                // 4. THE THRESHOLD CHECK (If 3 or fewer cards remain)
+                if (state.deck.length <= 3) {
+                    addLog(`SECURITY TRIGGER: Deck reached threshold (${state.deck.length} cards left).`, true);
+                    const freshCards = [1, 2, 3, 4, 5, 6, 7];
+                    state.deck = state.deck.concat(freshCards); // Combine
+                    state.deck = shuffle(state.deck);           // Reshuffle
+                    addLog(`Injected 7 new tokens and completely reshuffled. New deck size: ${state.deck.length}`, true);
+                }
+            }
+
+            addLog(`--- DRAW COMPLETE ---`);
+            saveState(); // Saves to local storage and updates the DOM
+        }
+
+        function resetSystem() {
+            if(confirm("Are you sure? This will delete all workload history and start from scratch.")) {
+                initializeFreshState();
+            }
+        }
+
+        // --- DOM Interaction ---
+        function updateUI() {
+            // Update Deck Count
+            document.getElementById('deckCount').innerText = state.deck.length;
+
+            // Update Workload Grid
+            const grid = document.getElementById('workloadGrid');
+            grid.innerHTML = '';
+            for (let i = 1; i <= 7; i++) {
+                grid.innerHTML += `
+                    <div class="division-stat">
+                        Div ${i}
+                        <strong>${state.workload[i]}</strong>
+                    </div>
+                `;
+            }
+
+            // Update Logs
+            const logContainer = document.getElementById('auditLog');
+            // Render logs in reverse so newest is at the bottom (natural reading)
+            logContainer.innerHTML = state.logs.join('');
+            // Auto-scroll to bottom
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // Initial render on page load
+        updateUI();
+    </script>
+</body>
+</html>
