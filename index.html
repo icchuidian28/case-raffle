@@ -1,12 +1,4 @@
-I know exactly what is causing this error.
 
-Your browser's `localStorage` is remembering the saved data from the **previous** version of the code we made. Because that older version didn't have the step-by-step "session" feature, it doesn't know what `state.session.active` is, which causes the page to crash.
-
-To fix this permanently, we just need to add a tiny check right after the app loads. If the app detects an old save file that is missing the "session" data, it will automatically upgrade it.
-
-Here is the complete, patched code. You can copy and paste this directly over your current `index.html` file:
-
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -278,4 +270,3 @@ Here is the complete, patched code. You can copy and paste this directly over yo
 </body>
 </html>
 
-```
