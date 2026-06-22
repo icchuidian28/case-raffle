@@ -96,7 +96,7 @@
 
     <div class="card">
         <h2>System Status</h2>
-        <p>Cards remaining in current deck: <strong id="deckCount" style="font-size: 1.2em; color: #e67e22;"></strong></p>
+        <p>Pool: <strong id="deckCount" style="font-size: 1.2em; color: #e67e22;"></strong></p>
         
         <h3>Total Workload Distribution</h3>
         <div class="workload-grid" id="workloadGrid">
@@ -122,7 +122,7 @@
             state = {
                 deck: shuffle([1, 2, 3, 4, 5, 6, 7]),
                 workload: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 },
-                logs: [`[${new Date().toLocaleTimeString()}] System Initialized. New deck of 7 created and shuffled.`]
+                logs: [`[${new Date().toLocaleTimeString()}] System Initialized. New Pool of 7 created and shuffled.`]
             };
             saveState();
         }
@@ -174,11 +174,11 @@
 
                 // 4. THE THRESHOLD CHECK (If 3 or fewer cards remain)
                 if (state.deck.length <= 3) {
-                    addLog(`SECURITY TRIGGER: Deck reached threshold (${state.deck.length} cards left).`, true);
+                    addLog(`SECURITY TRIGGER: Pool reached threshold (${state.deck.length} cards left).`, true);
                     const freshCards = [1, 2, 3, 4, 5, 6, 7];
                     state.deck = state.deck.concat(freshCards); // Combine
                     state.deck = shuffle(state.deck);           // Reshuffle
-                    addLog(`Injected 7 new tokens and completely reshuffled. New deck size: ${state.deck.length}`, true);
+                    addLog(`Injected 7 new tokens and completely reshuffled. New Pool size: ${state.deck.length}`, true);
                 }
             }
 
