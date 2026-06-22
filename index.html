@@ -131,10 +131,26 @@
 
         if (!state) {
             initializeFreshState();
-        } else if (!state.session) {
-            // FIX: If loading an older save file, automatically upgrade it to include the session logic
-            state.session = { active: false, totalCases: 0, drawnCases: 0 };
-            saveState();
+        } else {
+            let stateUpdated = false;
+            
+            // FIX 1: Migrate old 'deck' array to 'pool'
+            if (state.deck) {
+                state.pool = state.deck;
+                delete state.deck;
+                stateUpdated = true;
+            }
+            
+            // FIX 2: Ensure session data exists
+            if (!state.session) {
+                state.session = { active: false, totalCases: 0, drawnCases: 0 };
+                stateUpdated = true;
+            }
+
+            // Save migrations silently before the UI loads
+            if (stateUpdated) {
+                localStorage.setItem('raffleState', JSON.stringify(state));
+            }
         }
 
         // --- Core Logic Functions ---
@@ -269,4 +285,3 @@
     </script>
 </body>
 </html>
-
